@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import os, io, subprocess
+import os, io, subprocess, sys
+import math
 import datetime, time
 import psutil
 import json
@@ -7,7 +8,7 @@ import traceback
 import png
 import schedule
 import pytz
-from datetime import datetime
+from datetime import datetime, timedelta
 from pytz import timezone
 from uuid import UUID
 from urllib import request, parse
@@ -34,6 +35,24 @@ def parse_str(src, parser_data):
     def time(tz = pytz.utc, fmt = '%H:%M'):
         return date(tz, fmt)
 
+    def bindate(clc):
+        return datetime.fromisoformat(clc['date'][0:10]).strftime('%m-%d %A')
+    def binweekday(clc):
+        return datetime.fromisoformat(clc['date'][0:10]).weekday()
+    def nextbin(tz = pytz.utc):
+        now = datetime.now(timezone(tz))
+        for clc in parser_data['bin']:
+            date = timezone(tz).localize(datetime.fromisoformat(clc['date'][0:10]))
+            days = math.ceil((date - now) / timedelta(days=1))
+            if days >= 0:
+                return clc, days
+        return None, 0
+    def nextbindays(tz = pytz.utc):
+        clc, days = nextbin(tz)
+        if clc == None:
+            return '???'
+        return days
+
     if src.startswith('='):
         try:
             d = parser_data
@@ -44,11 +63,23 @@ def parse_str(src, parser_data):
         return out
     return src
 
+def hide_element(e):
+    while e:
+        if e.nodeName == 'g':
+            e.attributes['visibility'] = 'hidden'
+            return
+        e = e.parentNode
+
 def parse_template(src, parser_data):
     for tspan in src.getElementsByTagName('tspan'):
         for text in tspan.childNodes:
             if text.nodeName == '#text':
-                text.nodeValue = parse_str(text.nodeValue, parser_data)
+                val = parse_str(text.nodeValue, parser_data)
+                if type(val) == bool:
+                    if val == False:
+                        hide_element(text)
+                else:
+                    text.nodeValue = parse_str(text.nodeValue, parser_data)
     return src
 
 def update_img(uuid, info, parser_data):
@@ -58,6 +89,10 @@ def update_img(uuid, info, parser_data):
                           f"{info['type']}_{str(uuid)}.svg")
     pngimg = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'png',
                           f"{info['type']}_{str(uuid)}.png")
+    pngditherimg = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dither',
+                                f"{info['type']}_{str(uuid)}.png")
+    paletteimg = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'palette',
+                              f"{info['c']}.png")
 
     # Template -> SVG
     doc = minidom.parse(template)
@@ -66,14 +101,30 @@ def update_img(uuid, info, parser_data):
         doc.writexml(f)
 
     # SVG -> PNG
-    subprocess.run(["convert", svgimg, "-resize", f"{info['w']}x{info['h']}", pngimg])
+    cmd = ["rsvg-convert", svgimg,
+           "-w", str(info['w']), "-h", str(info['h']),
+           "-o", pngimg]
+    print(' '.join(cmd))
+    subprocess.run(cmd)
+
+    # PNG dithering
+    if 0:
+        cmd = ["convert", pngimg, "-resize", f"{info['w']}x{info['h']}^",
+               "-gravity", "center", "-extent", f"{info['w']}x{info['h']}",
+               "-dither", "FloydSteinberg", "-remap", paletteimg, pngditherimg]
+    else:
+        cmd = ["convert", pngimg, "-resize", f"{info['w']}x{info['h']}^",
+               "-gravity", "center", "-extent", f"{info['w']}x{info['h']}",
+               "-dither", "None", "-remap", paletteimg, pngditherimg]
+    print(' '.join(cmd))
+    subprocess.run(cmd)
 
     # Read final PNG
-    with open(pngimg, 'rb') as f:
+    with open(pngditherimg, 'rb') as f:
         png_data = f.read()
         f.seek(0)
         reader = png.Reader(file=f)
-        w,h,imgdata,pnginfo = reader.read()
+        w,h,imgdata,pnginfo = reader.asRGBA8()
         imgdata = list(imgdata)
     img = []
     for y in range(h):
@@ -132,18 +183,19 @@ def update_bin_collection():
     resp = http_req(bin_url)
     if (resp == None):
         return
-    collection = resp['collections'][0]
+    collection = resp['collections']
     parser_data['bin'] = collection
 
 # Initial
 update_bin_collection()
 update_displays()
 
-# Scheduling
-schedule.every(bin_update_min).minutes.do(update_bin_collection)
-schedule.every(display_update_min).minutes.do(update_displays)
+if len(sys.argv) <= 1:
+    # Scheduling
+    schedule.every(bin_update_min).minutes.do(update_bin_collection)
+    schedule.every(display_update_min).minutes.do(update_displays)
 
-# Run scheduler
-while True:
-    schedule.run_pending()
-    time.sleep(scheduler_period_sec)
+    # Run scheduler
+    while True:
+        schedule.run_pending()
+        time.sleep(scheduler_period_sec)
