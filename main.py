@@ -29,7 +29,7 @@ def http_req(url, data = None):
         return None
     return resp
 
-def parse_str(src, parser_data):
+def parse_str(src, uuid, parser_data):
     def date(tz = pytz.utc, fmt = '%Y-%m-%d'):
         return datetime.now(timezone(tz)).strftime(fmt)
     def time(tz = pytz.utc, fmt = '%H:%M'):
@@ -56,6 +56,7 @@ def parse_str(src, parser_data):
     if src.startswith('='):
         try:
             d = parser_data
+            ud = parser_data[uuid]
             out = eval(src[1:])
         except:
             traceback.print_exc()
@@ -70,16 +71,16 @@ def hide_element(e):
             return
         e = e.parentNode
 
-def parse_template(src, parser_data):
+def parse_template(src, uuid, parser_data):
     for tspan in src.getElementsByTagName('tspan'):
         for text in tspan.childNodes:
             if text.nodeName == '#text':
-                val = parse_str(text.nodeValue, parser_data)
+                val = parse_str(text.nodeValue, uuid, parser_data)
                 if type(val) == bool:
                     if val == False:
                         hide_element(text)
                 else:
-                    text.nodeValue = parse_str(text.nodeValue, parser_data)
+                    text.nodeValue = val
     return src
 
 def update_img(uuid, info, parser_data):
@@ -96,7 +97,7 @@ def update_img(uuid, info, parser_data):
 
     # Template -> SVG
     doc = minidom.parse(template)
-    doc = parse_template(doc, parser_data)
+    doc = parse_template(doc, uuid, parser_data)
     with open(svgimg, 'w') as f:
         doc.writexml(f)
 
@@ -160,6 +161,13 @@ def img_to_rwb(img):
 
     return data_bw + data_r
 
+def update_sensors(info, pdata):
+    sensors = http_req(f"{sensors_url_base}{info['sensors']}")
+    for s in sensors:
+        sensor = s['sensor']
+        if s['data'] != None:
+            pdata[sensor] = s['data']
+
 def update_displays():
     for u in uuid_list:
         uuid = UUID(u)
@@ -167,7 +175,10 @@ def update_displays():
         if info == None:
             continue
 
+        parser_data[uuid] = {}
+
         try:
+            update_sensors(info, parser_data[uuid])
             img, png_data = update_img(uuid, info, parser_data)
         except:
             raise

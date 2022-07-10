@@ -1,6 +1,5 @@
 <?php
 require 'dbconf.php';
-//ob_start("ob_gzhandler", 4 * 1024 * 1024);
 
 function error($code, $msg = null) {
     http_response_code($code);
@@ -57,9 +56,11 @@ SQL;
 		error(400, "No record");
 	$ret = $obj->fetch_column();
 
+    ob_start("ob_gzhandler", 4 * 1024 * 1024);
 	header('Content-Type: image/png');
 	header('Content-disposition: filename="disp_' . $uuid . '_' . date("Ymd_His") . '.png"');
-	//ob_start("ob_gzhandler", 4 * 1024 * 1024);
+    echo($ret);
+    die();
 }
 
 else if (array_key_exists('info', $_GET)) {
@@ -144,6 +145,7 @@ if ($ret === null) {
 	error(400, "Unknown operation");
 }
 
+//ob_start("ob_gzhandler", 4 * 1024 * 1024);
 header('Content-Type: text/plain');
 echo($ret);
 ?>

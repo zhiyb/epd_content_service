@@ -1,5 +1,6 @@
 url_base = "https://zhiyb.me/nas/api/disp.php"
 bin_url = "https://servicelayer3c.azure-api.net/wastecalendar/collection/search/00000000/?numberOfCollections=3"
+sensors_url_base = "https://zhiyb.me/logging/get.php?t=sensors&type=voltage&s=vsys&h="
 
 display_update_min = 10
 bin_update_min = 24 * 60
