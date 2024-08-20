@@ -87,6 +87,14 @@ class Database
         if ($stmt->execute() !== true)
             error(500, $stmt->error);
     }
+
+    public function delete($client, $key) {
+        $sql = "DELETE FROM `services` WHERE `service` = ? AND `client` = ? AND `key` = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param('sss', $this->service, $client, $key);
+        if ($stmt->execute() !== true)
+            error(500, $stmt->error);
+    }
 }
 
 $db = new Database("schd");
@@ -198,6 +206,21 @@ if ($action == "setup") {
         error(400, "Invalid key");
 
     $db->set($token, $key, $data);
+    error(200, "OK");
+
+
+// ================================
+} else if ($action == "delete") {
+    if ($admin)
+        error(400, "Invalid token");
+    if ($_SERVER["REQUEST_METHOD"] != "POST")
+        error(400, "Invalid method");
+    // Form submission
+    $key = $_POST['key'] ?? 'data';
+    if (empty($key) || in_array($key, $reserved_keys))
+        error(400, "Invalid key");
+
+    $db->delete($token, $key);
     error(200, "OK");
 
 
@@ -366,30 +389,42 @@ $read_missed = $read_seq != $update_seq;
 <hr>
 <h3>Operations</h3>
 <table>
+    <tr>
+        <th>Operation</th>
+        <th>Method</th>
+        <th>Example</th>
+    </tr>
 <?php
 $url_token = urlencode($token);
 $url_ts = urlencode($ts);
 
 $links = [
-    ["Next schedule info", "?token=$url_token&action=next"],
-    ["Update schedule", "?token=$url_token&action=schedule&ts=$url_ts"],
-    ["Update data", "?token=$url_token&action=update"],
-    ["Update metadata", "?token=$url_token&action=update&key=meta"],
-    ["Read data", "?token=$url_token&action=read"],
-    ["Peek data", "?token=$url_token&action=peek"],
-    ["Peek metadata", "?token=$url_token&action=peek&key=meta&mime=" . urlencode("text/plain")],
+    ["Next schedule info", "GET", "?token=$url_token&action=next"],
+    ["Update schedule", "GET", "?token=$url_token&action=schedule&ts=$url_ts"],
+    ["Update data", "POST", "?token=$url_token&action=update"],
+    ["Update metadata", "POST", "?token=$url_token&action=update&key=meta"],
+    ["Read data", "GET", "?token=$url_token&action=read"],
+    ["Peek data", "GET", "?token=$url_token&action=peek"],
+    ["Peek metadata", "GET", "?token=$url_token&action=peek&key=meta&mime=" . urlencode("text/plain")],
 ];
 
 foreach ($links as $link) {
     $type = $link[0];
-    $url = $link[1];
-    echo("<tr><th>${type}</th><td><a href=\"${url}\">${url}</a></td></tr>");
+    $method = $link[1];
+    $url = $link[2];
+    echo("<tr><th>${type}</th><td>$method</td><td><a href=\"${url}\">${url}</a></td></tr>");
 }
 ?>
 </table>
 <hr>
 <h3>Data</h3>
 <table>
+    <tr>
+        <th>Key</th>
+        <th>Data size</th>
+        <th>Data</th>
+        <th>Preview</th>
+    </tr>
 <?php
 foreach ($c as $key => $val) {
     if (!in_array($key, $reserved_keys)) {
@@ -417,6 +452,12 @@ foreach ($c as $key => $val) {
     <input type="text" id="key" name="key">
     <label>=</label>
     <input type="text" id="data" name="data">
+    <input type="submit" value="Submit">
+</form>
+<form action="?action=delete" method="post">
+    <input type="hidden" id="token" name="token" value="<?php echo($token) ?>">
+    <label>Delete metadata:</label><br>
+    <input type="text" id="key" name="key">
     <input type="submit" value="Submit">
 </form>
 <?php endif; ?>
