@@ -152,7 +152,7 @@ if ($action == "setup") {
 
     $ts = $dt->format(DateTime::RFC3339);
     $db->set($token, "update_ts", $ts);
-    $db->set($token, "update_seq", ((int)($db->get($token, "update_seq")) + 1) % 256);
+    $db->set($token, "update_seq", ((int)($db->get($token, "update_seq")) + 1) % 65536);
     error(200, "OK");
 
 
@@ -399,9 +399,12 @@ foreach ($c as $key => $val) {
             $peek .= "&key=" . urlencode($key);
         $preview = 64;
         $str = substr($val, 0, $preview);
+        $str = htmlspecialchars($str);
         $str = json_encode($str);
         if (strlen($str) > $preview)
             $str = substr($str, 0, $preview) . "...";
+        //$str = str_replace(['<', '>'], ['&lt;', '&gt;'], $str);
+        $str = "<code>$str</code>";
         echo("<tr><th>$key</th><td>$len byte(s)</td><td><a href=\"$peek\">Download</a></td><td>$str</td></tr>");
     }
 }
