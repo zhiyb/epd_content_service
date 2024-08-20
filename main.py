@@ -13,7 +13,6 @@ import urllib
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
-from uuid import UUID
 from xml.dom import minidom
 
 from config import *
@@ -21,6 +20,8 @@ from config import *
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO)
+
+retry_secs = 10
 
 
 # HTTP connection
@@ -31,7 +32,7 @@ def http_req_json(url, data=None):
         with urllib.request.urlopen(url, data=data) as f:
             resp = f.read()
             resp = json.loads(resp)
-    except urllib.error.HTTPError as e:
+    except Exception as e:
         logger.warning("GET error: %s", e)
         return None
     return resp
@@ -49,7 +50,7 @@ def ddss_get(binary=False, **kwargs):
         with urllib.request.urlopen(url) as f:
             data = f.read()
             return data if binary else data.decode("utf8")
-    except urllib.error.HTTPError as e:
+    except Exception as e:
         logger.warning("GET error: %s", e)
         return None
 
@@ -61,7 +62,7 @@ def ddss_post(data, binary=False, **kwargs):
         with urllib.request.urlopen(url, data) as f:
             data = f.read()
             return data if binary else data.decode("utf8")
-    except urllib.error.HTTPError as e:
+    except Exception as e:
         logger.warning("POST error: %s", e)
         return None
 
@@ -76,7 +77,7 @@ def update_bin_collection(s: sched.scheduler, parser_data):
         s.enter(24 * 60 * 60, 0, update_bin_collection, (s, parser_data))
     else:
         logging.getLogger("bin_collections").info("Update failed")
-        s.enter(60, 0, update_bin_collection, (s, parser_data))
+        s.enter(retry_secs, 0, update_bin_collection, (s, parser_data))
 
 
 # SVG template parser
@@ -336,14 +337,28 @@ def update_display(s: sched.scheduler, token, template, template_ext, dtype, par
 def check_displays(s: sched.scheduler, parser_data):
     logger = logging.getLogger("check_displays")
     template_dir = "template"
+
+    # Wait for other services to be ready first
+    if "bin" not in parser_data:
+        logger.warning("Not ready")
+        s.enter(retry_secs, 0, check_displays, (s, parser_data))
+        return
+
+    found = False
     for fname in os.listdir(template_dir):
         token, ext = os.path.splitext(fname)
         if not ext:
             continue
         dtype = ddss_get(token=token, action="peek", key="type")
         if dtype:
+            found = True
             s.enter(0, 0, update_display, (
                 s, token, os.path.join(template_dir, fname), ext, dtype, parser_data))
+
+    # If no valid template found, try again later
+    if not found:
+        logger.warning("No valid templates")
+        s.enter(retry_secs, 0, check_displays, (s, parser_data))
 
 
 def main():
