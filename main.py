@@ -202,7 +202,8 @@ def img_to_7c(disp, img):
 # cron scheduling
 
 def cron_schedule(s: sched.scheduler, token, tz, cron, func, args):
-    now = datetime.now(ZoneInfo(tz))
+    # Add 1 minute delta so it won't immediately retrigger
+    now = datetime.now(ZoneInfo(tz)) + timedelta(minutes=1)
     next = now
     m,h,dom,mon,dow = cron
     logger = logging.getLogger("cron")

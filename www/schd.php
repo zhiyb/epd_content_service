@@ -3,6 +3,7 @@
 
 function error($code, $msg = null) {
     http_response_code($code);
+    header("Content-Type: application/json");
     if ($msg)
         die(json_encode(["code" => $code, "msg" => $msg]));
     die(json_encode(["code" => $code]));
@@ -182,10 +183,10 @@ if ($action == "setup") {
 
     $ret = [
         "outdated" => $update_seq != $read_seq,
-        "next_schd_s" => $update_dt->getTimestamp() - $now->getTimestamp()
+        "next_secs" => $update_dt->getTimestamp() - $now->getTimestamp()
     ];
-    echo(json_encode($ret));
-    die();
+    header("Content-Type: application/json");
+    die(json_encode($ret));
 
 
 // ================================
@@ -231,12 +232,17 @@ if ($action == "setup") {
     $key = $_GET['key'] ?? 'data';
     if (empty($key) || in_array($key, $reserved_keys))
         error(400, "Invalid key");
+
+    $ofs = $_GET['ofs'] ?? 0;
+    $len = $_GET['len'] ?? null;
     $mime = $_GET['mime'] ?? 'application/octet-stream';
+
+    $data = $db->get($token, $key);
+    $data = substr($data, $ofs, $len);
 
     header("Content-Type: $mime");
     header("Content-Disposition: inline; filename=\"$key.bin\"");
-    echo($db->get($token, $key));
-    die();
+    die($data);
 
 
 // ================================
@@ -247,15 +253,24 @@ if ($action == "setup") {
     if (empty($key) || in_array($key, $reserved_keys))
         error(400, "Invalid key");
 
+    $ofs = $_GET['ofs'] ?? 0;
+    $len = $_GET['len'] ?? null;
+    $mime = $_GET['mime'] ?? 'application/octet-stream';
+
     $now = new DateTime("now", new DateTimeZone("UTC"));
     $ts = $now->format(DateTime::RFC3339);
 
-    header('Content-Type: application/octet-stream');
-    header("Content-Disposition: inline; filename=\"$key.bin\"");
-    echo($db->get($token, $key));
+    $data = $db->get($token, $key);
+    $data = substr($data, $ofs, $len);
 
-    $db->set($token, "read_ts", $ts);
-    $db->set($token, "read_seq", (int)$db->get($token, "update_seq"));
+    header("Content-Type: $mime");
+    header("Content-Disposition: inline; filename=\"$key.bin\"");
+    echo($data);
+
+    if ($ofs == 0) {
+        $db->set($token, "read_ts", $ts);
+        $db->set($token, "read_seq", (int)$db->get($token, "update_seq"));
+    }
     die();
 }
 
