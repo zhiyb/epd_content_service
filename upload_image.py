@@ -23,9 +23,10 @@ def main():
     args = parser.parse_args()
 
     token = args.token
-    logger = logging.getLogger(token)
     image = os.path.abspath(args.image)
     root_dir = os.path.dirname(__file__)
+    logger = logging.getLogger(token)
+    logger.setLevel(logging.DEBUG)
 
     if args.build:
         # Build C Python extension
@@ -39,7 +40,7 @@ def main():
     # Convert image format and zoom to fit
     tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
     image_png_remap = os.path.join(tmp_dir, f"{token}.png")
-    cmd = ["convert", image, "-resize", f"{disp['w']}x{disp['h']}^",
+    cmd = ["convert", image, "-auto-orient", "-resize", f"{disp['w']}x{disp['h']}^",
         "-gravity", "center", "-extent", f"{disp['w']}x{disp['h']}",
         "-dither", args.dither, "-remap", disp["palette"], image_png_remap]
     logger.debug("exec: %s", " ".join(cmd))
