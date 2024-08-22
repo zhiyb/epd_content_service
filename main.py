@@ -261,13 +261,14 @@ def parse_disp_type(dtype):
 # cron scheduling
 
 def cron_schedule(s: sched.scheduler, token, tz, cron, func, args):
-    # Add 1 minute delta so it won't immediately retrigger
-    now = datetime.now(ZoneInfo(tz)) + timedelta(minutes=1)
-    next = now
-    m,h,dom,mon,dow = cron
     logger = logging.getLogger("cron")
+    m,h,dom,mon,dow = cron
+    now = datetime.now(ZoneInfo(tz))
 
-    d = (60 - next.second) % 60
+    # Add 1 minute delta so it won't immediately retrigger
+    next = now + timedelta(minutes=1)
+    # Start at 5 seconds so it definitely starts after the minute
+    d = (60 + 5 - next.second) % 60
     next += timedelta(seconds=d)
 
     if m != "*":
