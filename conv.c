@@ -11,7 +11,7 @@ static PyObject *img_to_7c(PyObject *self, PyObject *args)
         return NULL;
 
     // Decode palette
-    // Black, white, green, blue, red, yellow, orange
+    // Black, white, green, blue, red, yellow, orange, (clear)
     static const uint32_t n_colours = 7;
     uint32_t palette[8] = {};
     if (PyList_Size(pltdata) != n_colours)

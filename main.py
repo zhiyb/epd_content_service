@@ -276,6 +276,13 @@ def update_display(s: sched.scheduler, token, template, template_ext, dtype, par
         }
         disp["palette"] = os.path.join(pltdir, f"{disp['type']}.png")
 
+    elif dtype == "epd_2in13_rwb_122x250":
+        disp = {
+            "w": 128, "h": 250,
+            "type": "rwb",
+        }
+        disp["palette"] = os.path.join(pltdir, f"{disp['type']}.png")
+
     elif dtype == "epd_7in5_rwb4_640x384":
         disp = {
             "w": 640, "h": 384,
@@ -300,14 +307,21 @@ def update_display(s: sched.scheduler, token, template, template_ext, dtype, par
         logger.info("SVG: %s", ddss_url(token=token, action="peek", key="svg", mime="image/svg+xml"))
         fpath = svgimg
 
+        # Extract SVG size
+        svg = doc.getElementsByTagName("svg")[0]
+        width = int(svg.attributes["width"].value)
+        height = int(svg.attributes["height"].value)
 
-    if ext == ".svg":
         # SVG -> PNG
         ext = ".png"
         pngimg = os.path.join(tmpdir, f"{token}{ext}")
-        cmd = ["rsvg-convert", fpath,
-               "-w", str(disp["w"]), "-h", str(disp["h"]), "-a",
-               "-o", pngimg]
+        cmd = ["rsvg-convert", fpath, "-a"]
+        # zoom to fill
+        if ((width / disp["w"]) <= (height / disp["h"])):
+            cmd += ["-w", str(disp["w"])]
+        else:
+            cmd += ["-h", str(disp["h"])]
+        cmd += ["-o", pngimg]
         logger.debug("exec: %s", " ".join(cmd))
         subprocess.run(cmd)
         with open(pngimg, "rb") as f:
