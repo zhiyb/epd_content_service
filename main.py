@@ -182,21 +182,24 @@ def parse_template(src, parser_data):
 
 # Image data format converter
 
-def img_to_7c(disp, img):
-    import conv
-
-    with open(disp["palette"], "rb") as f:
-        reader = png.Reader(file=f)
-        w,h,pltdata,pnginfo = reader.asRGBA8()
-        pltdata = list(pltdata)
-
-    with open(img, "rb") as f:
+def read_img(fpath):
+    with open(fpath, "rb") as f:
         reader = png.Reader(file=f)
         w,h,imgdata,pnginfo = reader.asRGBA8()
         imgdata = list(imgdata)
+    return imgdata, pnginfo
 
-    return conv.img_to_7c(disp["w"], disp["h"], pltdata,
-                          pnginfo['planes'], imgdata)
+def img_to_7c(disp, img):
+    import conv
+    pltdata,_ = read_img(disp["palette"])
+    imgdata,pnginfo = read_img(img)
+    return conv.img_to_7c(disp["w"], disp["h"], pltdata, pnginfo['planes'], imgdata)
+
+def img_to_rwb(disp, img):
+    import conv
+    pltdata,_ = read_img(disp["palette"])
+    imgdata,pnginfo = read_img(img)
+    return conv.img_to_rwb(disp["w"], disp["h"], pltdata, pnginfo['planes'], imgdata)
 
 
 # cron scheduling
@@ -260,6 +263,13 @@ def update_display(s: sched.scheduler, token, template, template_ext, dtype, par
         }
         disp["palette"] = os.path.join(pltdir, f"{disp['type']}.png")
 
+    elif dtype == "epd_4in2_rwb_400x300":
+        disp = {
+            "w": 400, "h": 300,
+            "type": "rwb",
+        }
+        disp["palette"] = os.path.join(pltdir, f"{disp['type']}.png")
+
     else:
         raise RuntimeError(f"Unknown display type: {dtype}")
 
@@ -312,10 +322,16 @@ def update_display(s: sched.scheduler, token, template, template_ext, dtype, par
         fpath = pngremapimg
 
 
+    # Convert to EPD data format
+    epd_data = None
     if disp["type"] == "7c":
-        # Convert to EPD data format
-        data = img_to_7c(disp, fpath)
-        ddss_post(data, token=token, action="update")
+        epd_data = img_to_7c(disp, fpath)
+    elif disp["type"] == "rwb":
+        epd_data = img_to_rwb(disp, fpath)
+    else:
+        logger.warning("Unknown display type: %s", disp["type"])
+    if epd_data:
+        ddss_post(epd_data, token=token, action="update")
         logger.info("DATA: %s", ddss_url(token=token, action="peek"))
 
 
