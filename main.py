@@ -201,6 +201,12 @@ def img_to_rwb(disp, img):
     imgdata,pnginfo = read_img(img)
     return conv.img_to_rwb(disp["w"], disp["h"], pltdata, pnginfo['planes'], imgdata)
 
+def img_to_rwb4(disp, img):
+    import conv
+    pltdata,_ = read_img(disp["palette"])
+    imgdata,pnginfo = read_img(img)
+    return conv.img_to_rwb4(disp["w"], disp["h"], pltdata, pnginfo['planes'], imgdata)
+
 
 # cron scheduling
 
@@ -270,6 +276,13 @@ def update_display(s: sched.scheduler, token, template, template_ext, dtype, par
         }
         disp["palette"] = os.path.join(pltdir, f"{disp['type']}.png")
 
+    elif dtype == "epd_7in5_rwb4_640x384":
+        disp = {
+            "w": 640, "h": 384,
+            "type": "rwb4",
+        }
+        disp["palette"] = os.path.join(pltdir, f"rwb.png")
+
     else:
         raise RuntimeError(f"Unknown display type: {dtype}")
 
@@ -293,7 +306,7 @@ def update_display(s: sched.scheduler, token, template, template_ext, dtype, par
         ext = ".png"
         pngimg = os.path.join(tmpdir, f"{token}{ext}")
         cmd = ["rsvg-convert", fpath,
-               "-w", str(disp["w"]), "-h", str(disp["h"]),
+               "-w", str(disp["w"]), "-h", str(disp["h"]), "-a",
                "-o", pngimg]
         logger.debug("exec: %s", " ".join(cmd))
         subprocess.run(cmd)
@@ -328,6 +341,8 @@ def update_display(s: sched.scheduler, token, template, template_ext, dtype, par
         epd_data = img_to_7c(disp, fpath)
     elif disp["type"] == "rwb":
         epd_data = img_to_rwb(disp, fpath)
+    elif disp["type"] == "rwb4":
+        epd_data = img_to_rwb4(disp, fpath)
     else:
         logger.warning("Unknown display type: %s", disp["type"])
     if epd_data:
