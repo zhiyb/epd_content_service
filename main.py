@@ -208,6 +208,56 @@ def img_to_rwb4(disp, img):
     return conv.img_to_rwb4(disp["w"], disp["h"], pltdata, pnginfo['planes'], imgdata)
 
 
+def conv_epd_image(disp, fpath):
+    # Convert to EPD data format
+    epd_data = None
+    if disp["type"] == "7c":
+        epd_data = img_to_7c(disp, fpath)
+    elif disp["type"] == "rwb":
+        epd_data = img_to_rwb(disp, fpath)
+    elif disp["type"] == "rwb4":
+        epd_data = img_to_rwb4(disp, fpath)
+    else:
+        logging.getLogger("image").warning("Unknown display type: %s", disp["type"])
+    return epd_data
+
+def parse_disp_type(dtype):
+    pltdir = os.path.join(os.path.dirname(__file__), "palette")
+    disp = {}
+    if dtype == "epd_5in65_7c_600x448":
+        disp = {
+            "w": 600, "h": 448,
+            "type": "7c",
+        }
+        disp["palette"] = os.path.join(pltdir, f"{disp['type']}.png")
+
+    elif dtype == "epd_4in2_rwb_400x300":
+        disp = {
+            "w": 400, "h": 300,
+            "type": "rwb",
+        }
+        disp["palette"] = os.path.join(pltdir, f"{disp['type']}.png")
+
+    elif dtype == "epd_2in13_rwb_122x250":
+        disp = {
+            "w": 128, "h": 250,
+            "type": "rwb",
+        }
+        disp["palette"] = os.path.join(pltdir, f"{disp['type']}.png")
+
+    elif dtype == "epd_7in5_rwb4_640x384":
+        disp = {
+            "w": 640, "h": 384,
+            "type": "rwb4",
+        }
+        disp["palette"] = os.path.join(pltdir, f"rwb.png")
+
+    else:
+        raise RuntimeError(f"Unknown display type: {dtype}")
+
+    return disp
+
+
 # cron scheduling
 
 def cron_schedule(s: sched.scheduler, token, tz, cron, func, args):
@@ -251,47 +301,14 @@ def cron_schedule(s: sched.scheduler, token, tz, cron, func, args):
 def update_display(s: sched.scheduler, token, template, template_ext, dtype, parser_data):
     parser_data["cfg"] = {}
     parser_data["cfg"]["token"] = token
+    disp = parse_disp_type(dtype)
 
     fpath = template
     ext = template_ext
-    tmpdir = os.path.join(os.path.dirname(template), "..", "tmp")
-    pltdir = os.path.join(os.path.dirname(template), "..", "palette")
+    tmpdir = os.path.join(os.path.dirname(__file__), "tmp")
 
     logger = logging.getLogger(token)
     logger.info("Template: %s, type: %s", template, dtype)
-
-    # Parse display type
-    disp = {}
-    if dtype == "epd_5in65_7c_600x448":
-        disp = {
-            "w": 600, "h": 448,
-            "type": "7c",
-        }
-        disp["palette"] = os.path.join(pltdir, f"{disp['type']}.png")
-
-    elif dtype == "epd_4in2_rwb_400x300":
-        disp = {
-            "w": 400, "h": 300,
-            "type": "rwb",
-        }
-        disp["palette"] = os.path.join(pltdir, f"{disp['type']}.png")
-
-    elif dtype == "epd_2in13_rwb_122x250":
-        disp = {
-            "w": 128, "h": 250,
-            "type": "rwb",
-        }
-        disp["palette"] = os.path.join(pltdir, f"{disp['type']}.png")
-
-    elif dtype == "epd_7in5_rwb4_640x384":
-        disp = {
-            "w": 640, "h": 384,
-            "type": "rwb4",
-        }
-        disp["palette"] = os.path.join(pltdir, f"rwb.png")
-
-    else:
-        raise RuntimeError(f"Unknown display type: {dtype}")
 
 
     if ext == ".svg":
@@ -350,15 +367,7 @@ def update_display(s: sched.scheduler, token, template, template_ext, dtype, par
 
 
     # Convert to EPD data format
-    epd_data = None
-    if disp["type"] == "7c":
-        epd_data = img_to_7c(disp, fpath)
-    elif disp["type"] == "rwb":
-        epd_data = img_to_rwb(disp, fpath)
-    elif disp["type"] == "rwb4":
-        epd_data = img_to_rwb4(disp, fpath)
-    else:
-        logger.warning("Unknown display type: %s", disp["type"])
+    epd_data = conv_epd_image(disp, fpath)
     if epd_data:
         ddss_post(epd_data, token=token, action="update")
         logger.info("DATA: %s", ddss_url(token=token, action="peek"))
